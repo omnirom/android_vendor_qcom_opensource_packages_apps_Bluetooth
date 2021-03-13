@@ -29,7 +29,6 @@ import android.media.AudioManager;
 import android.os.HandlerThread;
 import android.os.ParcelUuid;
 import android.util.Log;
-
 import com.android.bluetooth.BluetoothMetricsProto;
 import com.android.bluetooth.BluetoothStatsLog;
 import com.android.bluetooth.Utils;
@@ -38,9 +37,9 @@ import com.android.bluetooth.btservice.AdapterService;
 import com.android.bluetooth.btservice.MetricsLogger;
 import com.android.bluetooth.btservice.ProfileService;
 import com.android.bluetooth.btservice.ServiceFactory;
+import com.android.bluetooth.btservice.storage.DatabaseManager;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.ArrayUtils;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -62,6 +61,7 @@ public class HearingAidService extends ProfileService {
     private static HearingAidService sHearingAidService;
 
     private AdapterService mAdapterService;
+    private DatabaseManager mDatabaseManager;
     private HandlerThread mStateMachinesThread;
     private BluetoothDevice mPreviousAudioDevice;
 
@@ -103,12 +103,12 @@ public class HearingAidService extends ProfileService {
             throw new IllegalStateException("start() called twice");
         }
 
-        // Get AdapterService, HearingAidNativeInterface, AudioManager.
-        // None of them can be null.
         mAdapterService = Objects.requireNonNull(AdapterService.getAdapterService(),
                 "AdapterService cannot be null when HearingAidService starts");
         mHearingAidNativeInterface = Objects.requireNonNull(HearingAidNativeInterface.getInstance(),
                 "HearingAidNativeInterface cannot be null when HearingAidService starts");
+        mDatabaseManager = Objects.requireNonNull(mAdapterService.getDatabase(),
+                "DatabaseManager cannot be null when HearingAidService starts");
         mAudioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         Objects.requireNonNull(mAudioManager,
                 "AudioManager cannot be null when HearingAidService starts");
@@ -487,8 +487,11 @@ public class HearingAidService extends ProfileService {
         if (DBG) {
             Log.d(TAG, "Saved connectionPolicy " + device + " = " + connectionPolicy);
         }
-        mAdapterService.getDatabase()
-                .setProfileConnectionPolicy(device, BluetoothProfile.HEARING_AID, connectionPolicy);
+
+        if (!mDatabaseManager.setProfileConnectionPolicy(device, BluetoothProfile.HEARING_AID,
+                  connectionPolicy)) {
+            return false;
+        }
         if (connectionPolicy == BluetoothProfile.CONNECTION_POLICY_ALLOWED) {
             connect(device);
         } else if (connectionPolicy == BluetoothProfile.CONNECTION_POLICY_FORBIDDEN) {
@@ -512,7 +515,7 @@ public class HearingAidService extends ProfileService {
     public int getConnectionPolicy(BluetoothDevice device) {
         enforceCallingOrSelfPermission(BLUETOOTH_PRIVILEGED,
                 "Need BLUETOOTH_PRIVILEGED permission");
-        return mAdapterService.getDatabase()
+        return mDatabaseManager
                 .getProfileConnectionPolicy(device, BluetoothProfile.HEARING_AID);
     }
 

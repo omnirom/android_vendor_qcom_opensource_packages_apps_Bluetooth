@@ -15,18 +15,18 @@
  */
 package com.android.bluetooth.map;
 
+import static org.mockito.Mockito.doReturn;
+
 import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
-
 import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.MediumTest;
 import androidx.test.rule.ServiceTestRule;
 import androidx.test.runner.AndroidJUnit4;
-
 import com.android.bluetooth.R;
 import com.android.bluetooth.TestUtils;
 import com.android.bluetooth.btservice.AdapterService;
-
+import com.android.bluetooth.btservice.storage.DatabaseManager;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -47,6 +47,7 @@ public class BluetoothMapServiceTest {
     @Rule public final ServiceTestRule mServiceRule = new ServiceTestRule();
 
     @Mock private AdapterService mAdapterService;
+    @Mock private DatabaseManager mDatabaseManager;
 
     @Before
     public void setUp() throws Exception {
@@ -55,6 +56,7 @@ public class BluetoothMapServiceTest {
                 mTargetContext.getResources().getBoolean(R.bool.profile_supported_map));
         MockitoAnnotations.initMocks(this);
         TestUtils.setAdapterService(mAdapterService);
+        doReturn(mDatabaseManager).when(mAdapterService).getDatabase();
         TestUtils.startService(mServiceRule, BluetoothMapService.class);
         mService = BluetoothMapService.getBluetoothMapService();
         Assert.assertNotNull(mService);

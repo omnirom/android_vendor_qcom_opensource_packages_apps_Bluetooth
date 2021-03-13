@@ -15,22 +15,21 @@
  */
 package com.android.bluetooth.pan;
 
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.os.UserManager;
-
 import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.MediumTest;
 import androidx.test.rule.ServiceTestRule;
 import androidx.test.runner.AndroidJUnit4;
-
 import com.android.bluetooth.R;
 import com.android.bluetooth.TestUtils;
 import com.android.bluetooth.btservice.AdapterService;
-
+import com.android.bluetooth.btservice.storage.DatabaseManager;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -51,6 +50,7 @@ public class PanServiceTest {
     @Rule public final ServiceTestRule mServiceRule = new ServiceTestRule();
 
     @Mock private AdapterService mAdapterService;
+    @Mock private DatabaseManager mDatabaseManager;
     @Mock private UserManager mMockUserManager;
 
     @Before
@@ -60,6 +60,7 @@ public class PanServiceTest {
                 mTargetContext.getResources().getBoolean(R.bool.profile_supported_pan));
         MockitoAnnotations.initMocks(this);
         TestUtils.setAdapterService(mAdapterService);
+        doReturn(mDatabaseManager).when(mAdapterService).getDatabase();
         TestUtils.startService(mServiceRule, PanService.class);
         mService = PanService.getPanService();
         Assert.assertNotNull(mService);

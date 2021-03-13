@@ -29,16 +29,19 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Looper;
-
 import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.MediumTest;
 import androidx.test.rule.ServiceTestRule;
 import androidx.test.runner.AndroidJUnit4;
-
 import com.android.bluetooth.R;
 import com.android.bluetooth.TestUtils;
 import com.android.bluetooth.btservice.AdapterService;
-
+import com.android.bluetooth.btservice.storage.DatabaseManager;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -48,12 +51,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 @MediumTest
 @RunWith(AndroidJUnit4.class)
@@ -74,6 +71,7 @@ public class HidDeviceTest {
     private static final int CALLBACK_ON_VIRTUAL_UNPLUG = 6;
 
     @Mock private AdapterService mAdapterService;
+    @Mock private DatabaseManager mDatabaseManager;
     @Mock private HidDeviceNativeInterface mHidDeviceNativeInterface;
 
     private BluetoothAdapter mAdapter;
@@ -108,6 +106,7 @@ public class HidDeviceTest {
         // Set up mocks and test assets
         MockitoAnnotations.initMocks(this);
         TestUtils.setAdapterService(mAdapterService);
+        doReturn(mDatabaseManager).when(mAdapterService).getDatabase();
         setHidDeviceNativeInterfaceInstance(mHidDeviceNativeInterface);
         // This line must be called to make sure relevant objects are initialized properly
         mAdapter = BluetoothAdapter.getDefaultAdapter();

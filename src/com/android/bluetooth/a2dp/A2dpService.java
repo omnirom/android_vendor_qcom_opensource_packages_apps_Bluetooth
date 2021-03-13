@@ -31,30 +31,28 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.media.AudioManager;
-import android.os.HandlerThread;
-import android.util.Log;
-
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Message;
 import android.os.SystemClock;
 import android.os.SystemProperties;
-
+import android.util.Log;
 import com.android.bluetooth.BluetoothMetricsProto;
 import com.android.bluetooth.BluetoothStatsLog;
 import com.android.bluetooth.Utils;
 import com.android.bluetooth.avrcp.Avrcp;
-import com.android.bluetooth.avrcp.Avrcp_ext;
 import com.android.bluetooth.avrcp.AvrcpTargetService;
+import com.android.bluetooth.avrcp.Avrcp_ext;
+import com.android.bluetooth.ba.BATService;
 import com.android.bluetooth.btservice.AdapterService;
 import com.android.bluetooth.btservice.MetricsLogger;
 import com.android.bluetooth.btservice.ProfileService;
 import com.android.bluetooth.btservice.ServiceFactory;
-import com.android.bluetooth.ba.BATService;
+import com.android.bluetooth.btservice.storage.DatabaseManager;
 import com.android.bluetooth.gatt.GattService;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.ArrayUtils;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -73,6 +71,7 @@ public class A2dpService extends ProfileService {
     private static A2dpService sA2dpService;
 
     private AdapterService mAdapterService;
+    private DatabaseManager mDatabaseManager;
     private HandlerThread mStateMachinesThread;
     private Avrcp mAvrcp;
     private Avrcp_ext mAvrcp_ext;
@@ -181,6 +180,8 @@ public class A2dpService extends ProfileService {
         synchronized (mVariableLock) {
             mAdapterService = Objects.requireNonNull(AdapterService.getAdapterService(),
                 "AdapterService cannot be null when A2dpService starts");
+            mDatabaseManager = Objects.requireNonNull(mAdapterService.getDatabase(),
+                    "DatabaseManager cannot be null when A2dpService starts");
         }
         try {
             mA2dpNativeInterfaceLock.writeLock().lock();
@@ -935,15 +936,6 @@ public class A2dpService extends ProfileService {
                 Log.d(TAG, "Switch A2DP devices to " + device + " from " + mActiveDevice);
             }
             storeActiveDeviceVolume();
-            if(previousActiveDevice != null && !tws_switch && isA2dpPlaying(previousActiveDevice)) {
-                synchronized (mAudioManagerLock) {
-                    if (mAudioManager != null && !mAudioManager.isStreamMute(AudioManager.STREAM_MUSIC)) {
-                        mAudioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC,
-                                AudioManager.ADJUST_MUTE,
-                                mAudioManager.FLAG_BLUETOOTH_ABS_VOLUME);
-                    }
-                }
-            }
             Log.w(TAG, "setActiveDevice coming out of mutex lock");
         }
 
@@ -1061,16 +1053,17 @@ public class A2dpService extends ProfileService {
         if (DBG) {
             Log.d(TAG, "Saved connectionPolicy " + device + " = " + connectionPolicy);
         }
-        boolean setSuccessfully;
-        setSuccessfully = mAdapterService.getDatabase()
-                .setProfileConnectionPolicy(device, BluetoothProfile.A2DP, connectionPolicy);
-        if (setSuccessfully && connectionPolicy == BluetoothProfile.CONNECTION_POLICY_ALLOWED) {
+
+        if (!mDatabaseManager.setProfileConnectionPolicy(device, BluetoothProfile.A2DP,
+                  connectionPolicy)) {
+            return false;
+        }
+        if (connectionPolicy == BluetoothProfile.CONNECTION_POLICY_ALLOWED) {
             connect(device);
-        } else if (setSuccessfully
-                && connectionPolicy == BluetoothProfile.CONNECTION_POLICY_FORBIDDEN) {
+        } else if (connectionPolicy == BluetoothProfile.CONNECTION_POLICY_FORBIDDEN) {
             disconnect(device);
         }
-        return setSuccessfully;
+        return true;
     }
 
     /**
@@ -1088,7 +1081,7 @@ public class A2dpService extends ProfileService {
     public int getConnectionPolicy(BluetoothDevice device) {
         synchronized (mVariableLock) {
             if(mAdapterService != null)
-                return mAdapterService.getDatabase()
+                return mDatabaseManager
                     .getProfileConnectionPolicy(device, BluetoothProfile.A2DP);
         }
         return BluetoothProfile.CONNECTION_POLICY_UNKNOWN;
@@ -1386,7 +1379,7 @@ public class A2dpService extends ProfileService {
         enforceCallingOrSelfPermission(BLUETOOTH_ADMIN_PERM, "Need BLUETOOTH ADMIN permission");
         synchronized (mVariableLock) {
             if(mAdapterService != null)
-                return mAdapterService.getDatabase().getA2dpSupportsOptionalCodecs(device);
+                return mDatabaseManager.getA2dpSupportsOptionalCodecs(device);
         }
         return BluetoothA2dp.OPTIONAL_CODECS_NOT_SUPPORTED;
     }
@@ -1397,7 +1390,7 @@ public class A2dpService extends ProfileService {
                 : BluetoothA2dp.OPTIONAL_CODECS_NOT_SUPPORTED;
         synchronized (mVariableLock) {
             if(mAdapterService != null)
-                mAdapterService.getDatabase().setA2dpSupportsOptionalCodecs(device, value);
+                mDatabaseManager.setA2dpSupportsOptionalCodecs(device, value);
         }
     }
 
@@ -1405,7 +1398,7 @@ public class A2dpService extends ProfileService {
         enforceCallingOrSelfPermission(BLUETOOTH_ADMIN_PERM, "Need BLUETOOTH_ADMIN permission");
         synchronized (mVariableLock) {
             if(mAdapterService != null)
-                return mAdapterService.getDatabase().getA2dpOptionalCodecsEnabled(device);
+                return mDatabaseManager.getA2dpOptionalCodecsEnabled(device);
         }
         return BluetoothA2dp.OPTIONAL_CODECS_PREF_UNKNOWN;
     }
@@ -1420,7 +1413,7 @@ public class A2dpService extends ProfileService {
         }
         synchronized (mVariableLock) {
             if(mAdapterService != null)
-                mAdapterService.getDatabase().setA2dpOptionalCodecsEnabled(device, value);
+                mDatabaseManager.setA2dpOptionalCodecsEnabled(device, value);
         }
     }
 
